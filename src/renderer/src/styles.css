@@ -1,0 +1,268 @@
+@import 'tailwindcss';
+@source './';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* ------------------------------------------------------------------ tokens
+   The same two roles as in Maris:
+   petal  → the accent: selection, primary actions, your replies
+   pollen → live activity only: a reply being written, the playhead, the moment a reply may go out */
+:root,
+[data-theme='light'] {
+  --text: #1b1830;
+  --text-2: #5c5873;
+  --text-3: #8a86a0;
+  --paper: #f4f3f9;
+  --side: #ecebf3;
+  --surface: #ffffff;
+  --raised: #ffffff;
+  --sunken: rgb(27 24 48 / 0.05);
+  --line: rgb(27 24 48 / 0.1);
+  --line-strong: rgb(27 24 48 / 0.18);
+  --petal: #6a4fe0;
+  --petal-strong: #5b3fd6;
+  --petal-soft: rgb(106 79 224 / 0.1);
+  --on-petal: #ffffff;
+  --pollen: #a86a08;
+  --pollen-soft: rgb(242 181 68 / 0.2);
+  --danger: #c62f45;
+  --danger-soft: rgb(198 47 69 / 0.1);
+  --ok: #1e8a5a;
+  --ok-soft: rgb(30 138 90 / 0.1);
+  --shadow: 0 1px 2px rgb(27 24 48 / 0.06), 0 8px 28px rgb(27 24 48 / 0.08);
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --text: #ecebf6;
+  --text-2: #a9a5c0;
+  --text-3: #77738f;
+  --paper: #15131f;
+  --side: #110f19;
+  --surface: #1a1826;
+  --raised: #232036;
+  --sunken: rgb(0 0 0 / 0.2);
+  --line: rgb(167 163 191 / 0.14);
+  --line-strong: rgb(167 163 191 / 0.26);
+  --petal: #a493ff;
+  --petal-strong: #8b76ff;
+  --petal-soft: rgb(164 147 255 / 0.14);
+  --on-petal: #120f22;
+  --pollen: #f2b544;
+  --pollen-soft: rgb(242 181 68 / 0.14);
+  --danger: #ff8597;
+  --danger-soft: rgb(255 133 151 / 0.12);
+  --ok: #72d6a8;
+  --ok-soft: rgb(114 214 168 / 0.12);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 32px rgb(0 0 0 / 0.32);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-paper: var(--paper);
+  --color-side: var(--side);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-petal: var(--petal);
+  --color-petal-strong: var(--petal-strong);
+  --color-petal-soft: var(--petal-soft);
+  --color-on-petal: var(--on-petal);
+  --color-pollen: var(--pollen);
+  --color-pollen-soft: var(--pollen-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  /* Bahnschrift, the condensed face SensePad sets its titles and numbers in. It ships with Windows. */
+  --font-display: 'Bahnschrift', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  --shadow-float: var(--shadow);
+}
+
+/* ------------------------------------------------------------------ base */
+html {
+  font-size: 15px;
+}
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+::selection {
+  background: var(--petal-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--petal);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.selectable,
+.selectable * {
+  user-select: text;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role='radio'],
+  [role='switch'],
+  [role='tab'],
+  select:not(:disabled),
+  summary,
+  input[type='range']:not(:disabled),
+  input[type='checkbox']:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+select option {
+  background-color: var(--raised);
+  color: var(--text);
+}
+
+/* Titles and numbers: Bahnschrift pulled a little narrower, as on a piece of studio gear. */
+.display {
+  font-family: var(--font-display);
+  font-stretch: 87%;
+  font-variation-settings: 'wdth' 87;
+  letter-spacing: 0.005em;
+}
+.num {
+  font-family: var(--font-display);
+  font-stretch: 80%;
+  font-variation-settings: 'wdth' 80;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* ------------------------------------------------------------------ range slider */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  background: transparent;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--petal) var(--fill, 50%), var(--line-strong) var(--fill, 50%));
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--raised);
+  border: 2px solid var(--petal);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  transition: transform 0.12s;
+}
+input[type='range']:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+/* ------------------------------------------------------------------ live activity */
+.live {
+  background: linear-gradient(90deg, var(--text-2) 0%, var(--pollen) 50%, var(--text-2) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 2.2s linear infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+/* A reply landing in the feed: lit for a moment, like a pad that was just hit. */
+.hit {
+  animation: hit 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes hit {
+  0% {
+    background-color: color-mix(in srgb, var(--petal) 46%, transparent);
+    transform: translateY(4px);
+  }
+  30% {
+    transform: none;
+  }
+  100% {
+    background-color: var(--petal-soft);
+    transform: none;
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+/* Neon themes: primary actions glow in the accent colour. */
+[data-glow] .glowable {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--petal) 55%, transparent),
+    0 0 18px -2px color-mix(in srgb, var(--petal) 70%, transparent);
+}
+[data-glow] .display {
+  text-shadow: 0 0 22px color-mix(in srgb, var(--petal) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

@@ -1,0 +1,41 @@
+appId: app.brackets.twitchbot
+productName: Brackets
+copyright: Copyright © 2026 MarySue
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
+  - from: resources/tray.png
+    to: tray.png
+  - from: resources/tray@2x.png
+    to: tray@2x.png
+# The FreeLLMAPI router runs as its own process and serves its dashboard from plain files, so it
+# sits beside the app archive instead of inside it (src/main/router.ts looks for it there).
+asarUnpack:
+  - out/router/**
+# Nothing native is built: the app has no runtime dependencies at all.
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+  executableName: Brackets
+nsis:
+  # One click, for the current user, no administrator rights: the simplest thing to hand to someone.
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Brackets
+  runAfterFinish: true
+  artifactName: Brackets-Setup-${version}.exe
+  # Uninstalling keeps the settings and the Twitch sign-in; they live in %APPDATA%\Brackets Twitch Chat Bot.
+  deleteAppDataOnUninstall: false

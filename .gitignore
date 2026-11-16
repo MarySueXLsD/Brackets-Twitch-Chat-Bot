@@ -1,0 +1,16 @@
+node_modules/
+out/
+release/
+*.log
+.vite/
+*.tsbuildinfo
+test-results/
+
+# FreeLLMAPI is fetched at a pinned commit by scripts/vendor.mjs, not kept in this repository.
+vendor/
+
+# Your own Twitch Client ID for the builds you hand out (electron.vite.config.ts reads it).
+*.local.txt
+
+# Pictures and frames saved by BRACKETS_SHOTS (src/main/shots.ts). The ones the README shows live in docs/.
+shots/
