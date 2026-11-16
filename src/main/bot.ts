@@ -5,11 +5,12 @@ import { powerSaveBlocker } from 'electron'
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
 import { COMMON_EMOTES } from '@shared/defaults'
-import type { AuthStatus, Behavior, BotEvent, BotSnapshot, BotStatus, Beat, ChatMessage, Decision, DecisionEntry, DropReason, FeedItem, Job, Lang, LlmSample, PauseReason, ReplyItem, SkipReason, Trigger } from '@shared/types'
+import type { AuthStatus, Behavior, BotEvent, BotSnapshot, BotStatus, Beat, ChatMessage, Decision, DecisionEntry, DropReason, FeedItem, Job, Lang, LlmSample, PauseReason, ReplyItem, Role, SkipReason, Trigger } from '@shared/types'
 import { normalizeChannel } from '@core/irc'
 import { addBrackets, dedupeKey, hasLink, isReaction, sanitizeReply, wordLetters } from '@core/filters'
 import { ineligible, classify, Pacer, typingDelay } from '@core/pacer'
 import { buildPrompt, detectLang, type ChatPrompt, type PromptLine } from '@core/persona'
+import { buildPickPrompt, parsePick } from '@core/picker'
 import type { Store } from './store'
 import { streamInfo } from './twitch/auth'
 import { explainNotice } from './twitch/chat'
@@ -37,13 +38,16 @@ export interface Account {
   rejected(): Promise<string>
 }
 /** Something that writes a reply. `target` is the message being answered, for the scripted demo. */
-export type Model = (args: ChatArgs & { target?: string }) => Promise<ChatResult>
+export type Model = (args: ChatArgs & { target?: string; task?: 'pick'; options?: string[] }) => Promise<ChatResult>
 
 /** A made-up chat for showing the app without Twitch or a model (src/main/demo.ts). */
 export interface DemoScene {
   stream: { title: string; game: string; viewers: number }
   /** The messages the scripted model has an answer for. */
   scripted: (text: string) => boolean
+  /** How long the demo listens before choosing, and pauses after a reply, in milliseconds. */
+  listenMs: number
+  gapMs: number
 }
 
 /** Past activity to start a demo with, so the window is not empty in its first second. */
@@ -65,6 +69,12 @@ const BEATS_MAX = 4000
 const HISTORY_MAX = 60
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+/**
+ * Added to the end of every instruction. Qwen models read "/no_think" as "answer without the
+ * thinking-out-loud preamble"; on the free services that preamble otherwise arrives in place of
+ * the answer about half the time. Other models take it for a stray word and ignore it.
+ */
+const NO_THINK = '\n\n/no_think'
 /** Skips shown in the decision list. The rest happen on almost every message and would bury it. */
 const WORTH_SHOWING: SkipReason[] = ['chance', 'user_cooldown', 'hour_cap', 'mention_cooldown', 'blocked_word', 'offline_stream', 'bot_question']
 
@@ -114,6 +124,12 @@ export class Bot extends EventEmitter {
   private latencies: number[] = []
   private token = ''
   private learnTimer: NodeJS.Timeout | null = null
+  /** Messages that arrived since the pause ended: what the model chooses from. */
+  private candidates: ChatMessage[] = []
+  private listenTimer: NodeJS.Timeout | null = null
+  private choosing = false
+  /** How many times in a row the model found nothing to answer; each one makes the next look later. */
+  private noPick = 0
   private retriedAuth = false
 
   constructor(store: Store, auth: Account, router: Router, chat: ChatSource, options: { model?: Model; demo?: DemoScene } = {}) {
@@ -281,6 +297,7 @@ export class Bot extends EventEmitter {
           /* tried again on the next start */
         }
       }
+      await this.router.tidyModels()
     } else if (!s.llm.customBaseUrl) {
       return this.fail('Не указан адрес своего сервера модели', 'The address of your own model server is not set')
     }
@@ -293,6 +310,7 @@ export class Bot extends EventEmitter {
     this.status.login = this.token ? account.login : ''
     this.status.test = s.behavior.test || !this.token || !account.canChat
     this.pacer.reset()
+    this.dropCandidates()
     // Read the room for a few seconds before saying anything.
     this.pacer.nextWindowAt = Date.now() + 6000
     this.history = []
@@ -319,6 +337,7 @@ export class Bot extends EventEmitter {
   stop(reason?: { ru: string; en: string }): void {
     if (this.status.state === 'idle') return
     this.epoch++
+    this.dropCandidates()
     this.chat.disconnect()
     this.stopTimers()
     const wasRunning = this.status.state === 'running'
@@ -485,16 +504,22 @@ export class Bot extends EventEmitter {
     const key = dedupeKey(m.text)
     let repeats = 0
     for (let i = this.history.length - 2; i >= 0 && i >= this.history.length - 31; i--) if (dedupeKey(this.history[i].text) === key) repeats++
-    let decision = this.pacer.consider(m, s.behavior, { now, ownLogin: own, perMin: this.status.perMin, busy: this.status.job !== null, paused: now < this.status.pausedUntil, slow: this.chat.privileged ? 0 : this.status.room.slow, repeats })
-    if (this.demo) {
-      // The demo follows a script: the lines it has answers for get one, the rest are passed over.
-      if (this.demo.scripted(m.text)) decision = this.status.job ? { reply: false, trigger: decision.trigger, reason: 'busy' } : { reply: true, trigger: decision.trigger, chance: decision.chance ?? 0.4 }
-      else if (decision.reply) decision = { reply: false, trigger: decision.trigger, reason: 'chance', chance: decision.chance ?? 0.2 }
-    }
+    const decision = this.pacer.consider(m, s.behavior, { now, ownLogin: own, perMin: this.status.perMin, busy: this.status.job !== null, paused: now < this.status.pausedUntil, slow: this.chat.privileged ? 0 : this.status.room.slow, repeats })
     this.beat(decision.trigger === 'mention' ? 'a' : 'm', m.text, now)
 
-    if (decision.reply && s.behavior.onlyWhenLive && this.status.stream.known && !this.status.stream.live) {
-      this.decide(m, decision.trigger, 'offline_stream')
+    // "Open": the message may be answered and the pause is over; only the dice were left to roll.
+    const open = decision.reply || decision.reason === 'chance'
+    if (open && s.behavior.onlyWhenLive && this.status.stream.known && !this.status.stream.live) {
+      if (decision.reply) this.decide(m, decision.trigger, 'offline_stream')
+      return
+    }
+    // Being called by name is answered at once. Anything else is not left to the dice: it joins
+    // the messages the model will choose from.
+    const direct = decision.trigger === 'mention' && s.behavior.replyToMentions
+    if (open && !direct && s.behavior.smartPick) {
+      this.candidates.push(m)
+      this.listen()
+      this.pushStatus()
       return
     }
     if (!decision.reply) {
@@ -506,6 +531,114 @@ export class Bot extends EventEmitter {
       return
     }
     void this.reply(m, decision)
+  }
+
+  // ------------------------------------------------------------------ choosing what to answer
+
+  private dropCandidates(): void {
+    this.noPick = 0
+    this.candidates = []
+    if (this.listenTimer) clearTimeout(this.listenTimer)
+    this.listenTimer = null
+    this.choosing = false
+  }
+
+  /** Give the chat a few seconds to offer more to choose from, then choose. */
+  private listen(): void {
+    if (this.choosing) return
+    if (this.listenTimer) {
+      // Plenty already: no need to wait out the rest.
+      if (this.candidates.length < 8) return
+      clearTimeout(this.listenTimer)
+      this.listenTimer = null
+      return void this.choose()
+    }
+    const wait = this.demo ? this.demo.listenMs : Math.min(this.store.get().behavior.spreadSec, 15) * 1000
+    this.listenTimer = setTimeout(() => {
+      this.listenTimer = null
+      void this.choose()
+    }, wait)
+  }
+
+  /**
+   * The first of the two jobs the model does: look over the latest messages and say which one an
+   * ordinary viewer could answer in general terms. Often the right answer is "none of them".
+   */
+  private async choose(): Promise<void> {
+    if (this.choosing || this.status.job || this.status.state !== 'running') return
+    const epoch = this.epoch
+    const started = Date.now()
+    // Only what is still fresh enough to answer, the newest ten.
+    const pool = this.candidates.filter((m) => started - m.ts < 20000).slice(-10)
+    this.candidates = []
+    if (!pool.length || started < this.status.pausedUntil) return
+
+    this.choosing = true
+    const job: Job = { id: randomUUID(), phase: 'choosing', to: { name: '', text: '' }, trigger: 'chat', startedAt: started, pool: pool.length }
+    this.status.job = job
+    this.pushStatus()
+    let picked: ChatMessage | null = null
+    let unread = ''
+    try {
+      const s = this.store.get()
+      const prompt = buildPickPrompt(pool.map((m) => ({ name: m.name, text: m.text })), this.language(), this.role())
+      // Two tries: free models sometimes answer a request for a number with a paragraph. Each try
+      // gets fifteen seconds at most; a choice that takes longer is about messages long gone.
+      for (let attempt = 0; attempt < 2 && epoch === this.epoch; attempt++) {
+        const at = this.endpoint()
+        if (!at) {
+          unread = 'The model is not ready'
+          break
+        }
+        try {
+          const res = await this.model({ ...at, system: prompt.system + NO_THINK, user: prompt.user, temperature: 0.2, maxTokens: Math.max(s.llm.maxTokens, 500), timeoutMs: Math.min(s.llm.timeoutSec, 15) * 1000, task: 'pick', options: pool.map((m) => m.text) })
+          this.track(res)
+          const n = parsePick(res.text, pool.length)
+          if (n === null) {
+            unread = res.text.slice(0, 120)
+            continue
+          }
+          unread = ''
+          picked = n > 0 ? pool[n - 1] : null
+          break
+        } catch (err) {
+          const e = err as LlmError
+          this.status.llm.errors++
+          this.status.llm.lastError = e.message
+          unread = e.message
+          if (!(e instanceof LlmError) || e.code === 'timeout' || e.code === 'unreachable' || e.status === 503 || e.status === 401) break
+          if (e.status === 404 && attempt === 0) await sleep(3500)
+        }
+      }
+    } finally {
+      this.choosing = false
+      if (this.status.job === job) this.status.job = null
+    }
+    if (epoch !== this.epoch) return
+    if (!picked) {
+      // Nothing fit, or the choice could not be read. Either way nothing is said: answering a
+      // message at random is how made-up facts get into a chat.
+      const d: DecisionEntry = { id: randomUUID(), ts: Date.now(), name: '', text: '', trigger: 'chat', outcome: 'no_pick', detail: unread ? `${pool.length}: ${unread}` : String(pool.length) }
+      this.decisions.push(d)
+      if (this.decisions.length > DECISIONS_MAX) this.decisions.splice(0, this.decisions.length - DECISIONS_MAX)
+      this.push({ e: 'decision', d })
+      // A chat with nothing to answer now rarely has something ten seconds later: look again after
+      // 10 s, then 20, 30, up to a minute, so a dull stretch does not cost a model call every time.
+      this.noPick++
+      this.pacer.nextWindowAt = Math.max(this.pacer.nextWindowAt, Date.now() + Math.min(60, 10 * this.noPick) * 1000)
+      this.pushStatus()
+      return
+    }
+    this.noPick = 0
+    void this.reply(picked, { reply: true, trigger: classify(picked, this.store.get().behavior, this.status.login) }, 'picked')
+  }
+
+  private track(res: ChatResult): void {
+    this.latencies.push(res.ms)
+    if (this.latencies.length > 30) this.latencies.shift()
+    this.status.llm.lastVia = res.via
+    this.status.llm.lastMs = res.ms
+    this.status.llm.avgMs = Math.round(this.latencies.reduce((a, b) => a + b, 0) / this.latencies.length)
   }
 
   /** What the person types in chat themself is the best example of how they write. */
@@ -529,6 +662,16 @@ export class Bot extends EventEmitter {
     if (l.source === 'custom') return l.customBaseUrl ? { baseUrl: l.customBaseUrl, apiKey: this.store.secret('llm.customKey'), model: l.customModel || 'default' } : null
     const e = this.router.endpoint()
     return e ? { ...e, model: l.model || 'auto' } : null
+  }
+
+  /**
+   * The streamer on your own channel, a viewer in someone else's. Without a sign-in there is no
+   * telling whose channel it is, and answering your own viewers is what the app is mostly for.
+   */
+  private role(): Role {
+    const set = this.store.get().persona.role
+    if (set !== 'auto') return set
+    return this.status.login && this.status.channel && this.status.login !== this.status.channel ? 'viewer' : 'creator'
   }
 
   private language(): Lang {
@@ -555,6 +698,7 @@ export class Bot extends EventEmitter {
       trigger,
       lang,
       maxChars: s.behavior.maxChars,
+      role: this.role(),
       reaction: trigger !== 'mention' && isReaction(target.text)
     })
     return { ...prompt, lang, target: target.text, from: target.name }
@@ -586,12 +730,8 @@ export class Bot extends EventEmitter {
     let last: { reason: DropReason; detail: string; raw: string; via: string; ms: number } = { reason: 'empty', detail: '', raw: '', via: '', ms: 0 }
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const res = await this.model({ ...at, system: prompt.system, user: prompt.user, temperature: Math.min(2, s.llm.temperature + attempt * 0.15), maxTokens: s.llm.maxTokens, timeoutMs: s.llm.timeoutSec * 1000, ...(prompt.target === undefined ? {} : { target: prompt.target }) })
-        this.latencies.push(res.ms)
-        if (this.latencies.length > 30) this.latencies.shift()
-        this.status.llm.lastVia = res.via
-        this.status.llm.lastMs = res.ms
-        this.status.llm.avgMs = Math.round(this.latencies.reduce((a, b) => a + b, 0) / this.latencies.length)
+        const res = await this.model({ ...at, system: prompt.system + NO_THINK, user: prompt.user, temperature: Math.min(2, s.llm.temperature + attempt * 0.15), maxTokens: s.llm.maxTokens, timeoutMs: s.llm.timeoutSec * 1000, ...(prompt.target === undefined ? {} : { target: prompt.target }) })
+        this.track(res)
         const clean = sanitizeReply(res.text, {
           maxChars: s.behavior.maxChars,
           lowercase: s.persona.lowercase,
@@ -629,7 +769,7 @@ export class Bot extends EventEmitter {
     return { ok: false, ...last }
   }
 
-  private async reply(m: ChatMessage, decision: Decision, forced = false): Promise<void> {
+  private async reply(m: ChatMessage, decision: Decision, how: 'rolled' | 'picked' | 'forced' = 'rolled'): Promise<void> {
     const epoch = this.epoch
     const s = this.store.get()
     const b: Behavior = s.behavior
@@ -657,8 +797,9 @@ export class Bot extends EventEmitter {
       if (epoch !== this.epoch) return
       if (!written.ok) return drop(written.reason, written.detail)
 
-      // Being called by name is answered to that person; a remark on the chat is just said.
-      const mode = b.replyMode === 'auto' ? (decision.trigger === 'mention' ? 'thread' : 'plain') : b.replyMode
+      // A streamer answers a viewer, so the reply is tied to that viewer's message. A viewer's
+      // remark is just said, unless someone called them by name.
+      const mode = b.replyMode === 'auto' ? (decision.trigger === 'mention' || this.role() === 'creator' ? 'thread' : 'plain') : b.replyMode
       // A display name in another script (日本語, кириллица) does not work after "@"; the login always does.
       const handle = m.name.toLowerCase() === m.login ? m.name : m.login
       const text = mode === 'mention' ? `@${handle} ${written.text}` : written.text
@@ -675,7 +816,8 @@ export class Bot extends EventEmitter {
       const now = Date.now()
       if (now < this.status.pausedUntil) return drop('paused')
       // A reply to something said a minute ago reads as a glitch.
-      const limit = b.maxStaleSec * (decision.trigger === 'mention' || forced ? 3 : 1) * 1000
+      // A message the model chose has already waited through the choosing; give it a little longer.
+      const limit = b.maxStaleSec * (decision.trigger === 'mention' || how === 'forced' ? 3 : how === 'picked' ? 1.5 : 1) * 1000
       if (now - m.ts > limit) return drop('stale', `${Math.round((now - m.ts) / 1000)} s`)
 
       const test = this.status.test
@@ -687,6 +829,7 @@ export class Bot extends EventEmitter {
       } else this.status.counters.tests++
 
       this.pacer.onReply(now, decision.trigger, m.login, b, this.chat.privileged ? 0 : this.status.room.slow)
+      if (this.demo) this.pacer.nextWindowAt = now + this.demo.gapMs
       // The demo cycles through a short script, so the same answer is meant to come round again.
       if (!this.demo) this.recent.push(dedupeKey(written.text))
       if (this.recent.length > 12) this.recent.shift()
@@ -719,7 +862,7 @@ export class Bot extends EventEmitter {
       if (Date.now() - m.ts > 3 * 60000) break
       const trigger = classify(m, b, own)
       if (m.self || this.ownLines.has(m.id) || ineligible(m, b, own, trigger)) continue
-      void this.reply(m, { reply: true, trigger }, true)
+      void this.reply(m, { reply: true, trigger }, 'forced')
       return true
     }
     return false

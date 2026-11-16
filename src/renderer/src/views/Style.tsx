@@ -99,6 +99,19 @@ export function Style() {
 
       <div className="flex items-start gap-8">
         <div className="min-w-0 flex-1">
+          <Section title={l('Кто ты в чате', 'Who you are in the chat')} description={l('На своём канале Brackets отвечает зрителям от лица автора: на «классный стрим» скажет спасибо или отшутится. В чужом чате он пишет как один из зрителей.', 'On your own channel Brackets answers viewers as the streamer: "great stream" gets a thank-you or a joke. In someone else’s chat it writes as one of the viewers.')}>
+            <Segmented
+              label={l('Кто ты в чате', 'Who you are in the chat')}
+              value={p.role}
+              options={[
+                { value: 'auto', label: l('Сам поймёт', 'Work it out'), title: l('Свой канал: автор. Чужой: зритель.', 'Your own channel: the streamer. Someone else’s: a viewer.') },
+                { value: 'creator', label: l('Автор канала', 'The streamer') },
+                { value: 'viewer', label: l('Зритель', 'A viewer') }
+              ]}
+              onChange={(role) => set({ role })}
+            />
+          </Section>
+
           <Section title={l('Как ты пишешь', 'How you write')} description={l('Своими словами, как объяснил бы другу.', 'In your own words, the way you would explain it to a friend.')}>
             <TextArea ariaLabel={l('Как ты пишешь', 'How you write')} rows={4} value={p.about} onCommit={(about) => set({ about })} placeholder={l('пишу коротко и по-простому…', 'I write short and plain…')} />
           </Section>
@@ -145,6 +158,18 @@ export function Style() {
                   { value: '2', label: l('Как с телефона', 'Like on a phone') }
                 ]}
                 onChange={(v) => set({ typos: Number(v) as 0 | 1 | 2 })}
+              />
+            </Field>
+            <Field label={l('О себе по-русски', 'Yourself, in Russian')} hint={l('В русском по словам «рад» и «рада» виден пол. Без рода: Brackets таких слов избегает.', 'Russian words such as "рад" and "рада" show the speaker’s gender. Neutral: Brackets avoids them.')}>
+              <Segmented
+                label={l('О себе по-русски', 'Yourself, in Russian')}
+                value={p.gender}
+                options={[
+                  { value: 'neutral', label: l('Без рода', 'Neutral') },
+                  { value: 'm', label: l('Он', 'He') },
+                  { value: 'f', label: l('Она', 'She') }
+                ]}
+                onChange={(gender) => set({ gender })}
               />
             </Field>
             <Field label={l('Язык ответов', 'Reply language')}>

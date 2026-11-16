@@ -57,7 +57,9 @@ const THINKING = [
   new RegExp(`${START}(?:(?:okay|ok|alright|hmm|well),? )?(?:let me (?:think|see|analy[sz]e|break)|let's (?:think|analy[sz]e|break)|first,? (?:i need|let me|let's|we need)|(?:i|we) need to (?:respond|reply|answer|write|craft|come up|figure)|i should (?:respond|reply|answer|write|keep it)|the user (?:is|wants|asks|asked|said|says|wrote|message)|the (?:task|instruction|prompt) (?:is|says|asks))`, 'iu'),
   new RegExp(`${START}(?:(?:хорошо|ладно|итак|так),? )?(?:пользователь (?:просит|спрашивает|написал|пишет|хочет)|мне (?:нужно|надо) (?:ответить|написать|придумать)|нужно (?:ответить|написать) (?:как|в стиле|коротко|от лица)|давай(?:те)? (?:подумаем|разбер[её]м))`, 'iu'),
   // "1. **Analyze the request**"
-  /^\s*\d+\.\s+\*\*/
+  /^\s*\d+\.\s+\*\*/,
+  // A moderation model answering in place of a chat model: "Safety: Safe", "Categories: None".
+  /^\s*(?:safety|categories|category|verdict|label)\s*:/i
 ]
 
 /**
@@ -180,7 +182,8 @@ const EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}\
 
 /** Cut reasoning blocks some models print before the answer. */
 function stripThinking(raw: string): string {
-  let s = raw.replace(/<(think|thinking|reasoning|analysis)>[\s\S]*?<\/\1>/gi, '')
+  // "/no_think" is the switch the app adds to its request; a model that echoes it back is not swearing at anyone.
+  let s = raw.replace(/\/no_?think/gi, '').replace(/<(think|thinking|reasoning|analysis)>[\s\S]*?<\/\1>/gi, '')
   // An unclosed block: everything after the tag is thinking, nothing is an answer.
   s = s.replace(/<(think|thinking|reasoning|analysis)>[\s\S]*$/i, '')
   return s
@@ -188,14 +191,14 @@ function stripThinking(raw: string): string {
 
 function lowerExcept(text: string, keep: string[]): string {
   if (!keep.length) return text.toLowerCase()
-  const kept = new Map(keep.map((w) => [w.toLowerCase(), w]))
+  const exact = new Set(keep)
   return text
     .split(/(\s+)/)
     .map((token) => {
       const bare = token.replace(/^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu, '')
-      const original = kept.get(bare.toLowerCase())
-      // An emote only renders with its exact capitals, so "kekw" from the model becomes "KEKW".
-      return original ? token.replace(bare, original) : token.toLowerCase()
+      // An emote only renders with its exact capitals, so one the model wrote that way is left
+      // alone. Nothing is ever capitalised here: "yep" is a word long before it is the emote YEP.
+      return exact.has(bare) ? token : token.toLowerCase()
     })
     .join('')
 }
@@ -231,6 +234,9 @@ export function sanitizeReply(raw: string, o: SanitizeOptions): SanitizeResult {
   if (o.lowercase) s = lowerExcept(s, o.keepCase)
   if (o.noPeriod) s = s.replace(/(?<![.…])\.$/, '')
   s = cleanOutgoing(s)
+  // An opening bracket at the end is the sad smiley, "спасибо(". A model writes it by mistake for
+  // the closing one far more often than it means it.
+  s = s.replace(/\s*\(+$/, '')
 
   if (s.length > o.maxChars) {
     const cut = s.slice(0, o.maxChars)

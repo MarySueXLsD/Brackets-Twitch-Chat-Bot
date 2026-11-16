@@ -1,6 +1,6 @@
-// A made-up chat for showing the app without Twitch, an account or a model: a small stream where
-// someone draws pixel art, a dozen invented viewers, and answers written in advance. Everything
-// else is the real thing: the same pacing, clean-up, feed and rhythm strip.
+// A made-up chat for showing the app without Twitch, an account or a model: your own small stream
+// where you draw pixel art, a dozen invented viewers writing to you, and answers written in
+// advance. Everything else is the real thing: the same choosing, clean-up, feed and rhythm strip.
 //
 // Start it with `npm run demo` (English) or `electron . --demo=ru`. It keeps its settings in a
 // folder of its own and never connects to Twitch. The pictures in the README are made with it.
@@ -47,14 +47,13 @@ const VIEWERS: Viewer[] = [
   { login: 'okaywren', color: '#ff7a7a' },
   { login: 'dotmatrix', color: '#66d9e8' },
   { login: 'plumtart', color: '#91a7ff' },
-  { login: 'quietgiant', color: '#c0eb75' },
-  { login: 'pixel_harbor', color: '#f2b544', streamer: true }
+  { login: 'quietgiant', color: '#c0eb75' }
 ]
 
 const SCRIPTS: Record<Lang, Script> = {
   en: {
     channel: 'pixel_harbor',
-    login: 'tea_goblin',
+    login: 'pixel_harbor',
     stream: { title: 'cozy pixel art: building a harbor town', game: 'Art', viewers: 214 },
     filler: [
       'that palette is so good',
@@ -91,7 +90,7 @@ const SCRIPTS: Record<Lang, Script> = {
       'the sky gradient is unreal',
       'brb making tea',
       'back, what changed',
-      'she said no more seagulls KEKW',
+      'no more seagulls she said KEKW',
       'the colors feel like evening',
       'one more boat and its a fleet',
       'best part of my day honestly',
@@ -99,18 +98,18 @@ const SCRIPTS: Record<Lang, Script> = {
       'zoom in on the little shop'
     ],
     keys: [
-      { who: 'nina_plays', text: 'what brush is that?', replies: ['just the 1px pencil i think, she never changes it)', 'looks like the plain 1 pixel pencil)', 'pencil tool, nothing fancy'] },
-      { who: 'mossboy', text: '@tea_goblin did you finish your sprite?', replies: ['almost, the legs still look like noodles))', 'kinda, the walk cycle is cursed tho)'], trigger: 'mention' },
-      { who: 'pixel_harbor', text: 'chat should we add a lighthouse?', replies: ['lighthouse yes, with a tiny light that blinks)', 'yes and make the light blink)'] },
-      { who: 'kettlecorn', text: 'how long has she been drawing today?', replies: ['like three hours i think, time flies here)', 'around 3 hours)'] },
-      { who: 'void_frog', text: 'is this for the game jam?', replies: ['pretty sure its for the harbor game, not the jam', 'nah its the harbor project i think)'] },
-      { who: 'okaywren', text: 'why does the water look so good', replies: ['its the two extra blues, she said it earlier)', 'two more blues in the palette, thats all)'] }
+      { who: 'nina_plays', text: 'this stream is so cozy, thank you', replies: ['thank you, glad you are here)', 'thanks, that means a lot)', 'aw thanks, doing my best'] },
+      { who: 'mossboy', text: '@pixel_harbor hi from Poland!', replies: ['hi, welcome)', 'hello hello, good to see you)'], trigger: 'mention' },
+      { who: 'kettlecorn', text: 'how are you doing today?', replies: ['pretty good, thanks for asking)', 'good, better with you all here)'] },
+      { who: 'void_frog', text: 'you are the reason i started drawing', replies: ['that is the best thing to hear)', 'ok that made my day)'] },
+      { who: 'okaywren', text: 'gotta go, thanks for the stream!', replies: ['thanks for coming, see you)', 'bye, thanks for stopping by)'] },
+      { who: 'lumenize', text: 'first time here and i love it already', replies: ['welcome, stay as long as you like)', 'welcome in, happy you found us)'] }
     ],
     generic: ['lol fair)', 'honestly same', 'wait really? did not know that)']
   },
   ru: {
     channel: 'pixel_harbor',
-    login: 'tea_goblin',
+    login: 'pixel_harbor',
     stream: { title: 'уютный пиксель-арт: рисуем портовый городок', game: 'Art', viewers: 214 },
     filler: [
       'какая палитра красивая',
@@ -147,7 +146,7 @@ const SCRIPTS: Record<Lang, Script> = {
       'градиент неба нереальный',
       'ща вернусь, чай поставлю',
       'вернулся, что поменялось',
-      'она сказала чаек больше не будет KEKW',
+      'чаек больше не будет, сказали нам KEKW',
       'цвета как вечером',
       'ещё лодка и будет флот',
       'лучшая часть дня честно',
@@ -155,21 +154,27 @@ const SCRIPTS: Record<Lang, Script> = {
       'приблизь магазинчик'
     ],
     keys: [
-      { who: 'nina_plays', text: 'а что за кисть?', replies: ['вроде обычный карандаш в 1 пиксель)', 'карандаш на 1 пиксель, она его не меняет)', 'обычный карандаш вроде'] },
-      { who: 'mossboy', text: '@tea_goblin ты спрайт доделал?', replies: ['почти, ноги пока как макароны))', 'ну типо да, но походка кринж)'], trigger: 'mention' },
-      { who: 'pixel_harbor', text: 'чат, добавим маяк?', replies: ['маяк да, и чтоб огонёк мигал)', 'да и пусть мигает)'] },
-      { who: 'kettlecorn', text: 'сколько она уже рисует сегодня?', replies: ['часа три вроде, тут время летит)', 'около трёх часов)'] },
-      { who: 'void_frog', text: 'это для джема?', replies: ['не, это для игры про порт вроде', 'хз, вроде для своей игры)'] },
-      { who: 'okaywren', text: 'почему вода так красиво выглядит', replies: ['там два доп синих, она говорила)', 'два лишних синих в палитре и всё)'] }
+      { who: 'nina_plays', text: 'стрим такой уютный, спасибо', replies: ['спасибо, приятно)', 'спасибо, стараюсь)', 'ой спасибо'] },
+      { who: 'mossboy', text: '@pixel_harbor привет из Минска!', replies: ['привет, добро пожаловать)', 'привет привет)'], trigger: 'mention' },
+      { who: 'kettlecorn', text: 'как дела сегодня?', replies: ['да норм, спасибо что спросили)', 'хорошо, с вами ещё лучше)'] },
+      { who: 'void_frog', text: 'из-за тебя начал рисовать пиксель-арт', replies: ['это лучшее что можно услышать)', 'ну всё, день удался)'] },
+      { who: 'okaywren', text: 'мне пора, спасибо за стрим!', replies: ['спасибо что зашли, до встречи)', 'пока, спасибо что заглянули)'] },
+      { who: 'lumenize', text: 'первый раз тут, уже нравится', replies: ['добро пожаловать, оставайся)', 'добро пожаловать, тут все свои)'] }
     ],
     generic: ['ахах ну да)', 'жиза', 'а че реально? не знал)']
   }
 }
 
 const VIAS = ['groq/llama-3.3-70b-versatile', 'google/gemini-2.5-flash', 'cerebras/llama-3.3-70b']
-/** Seconds after the start at which the scripted lines come, one cycle. */
-const KEY_TIMES = [3, 12, 21.5, 31, 40.5, 50]
-const CYCLE = 59
+/**
+ * Seconds after the start at which the scripted lines come, one cycle. They are spaced so that each
+ * arrives while the responder is listening again after its last reply (see LISTEN_MS and GAP_MS).
+ */
+const KEY_TIMES = [3.5, 14.5, 27.5, 44, 60, 76]
+const CYCLE = 92
+/** The demo listens this long before it chooses, and pauses this long after a reply. */
+const LISTEN_MS = 3000
+const GAP_MS = 6500
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
@@ -337,6 +342,12 @@ export function createDemo(lang: Lang): Demo {
 
   const model: Model = async (args) => {
     const started = Date.now()
+    if (args.task === 'pick') {
+      // The choosing step: the scripted line if it is among the messages, otherwise "none of them".
+      await sleep(1100)
+      const at = (args.options ?? []).findIndex((text) => answers.has(text))
+      return { text: String(at + 1), via: VIAS[calls % VIAS.length], ms: Date.now() - started }
+    }
     await sleep(650 + (calls % 4) * 130)
     const target = args.target ?? ''
     const variants = answers.get(target)?.length ? answers.get(target)! : script.generic
@@ -375,14 +386,15 @@ export function createDemo(lang: Lang): Demo {
       if (key) {
         const text = key.line.replies?.[0] ?? ''
         const sentAt = t + 4600
-        const trigger: Trigger = key.line.trigger ?? 'question'
+        const trigger: Trigger = key.line.trigger ?? (key.line.text.includes('?') ? 'question' : 'chat')
         const reply: ReplyItem = { type: 'reply', id: randomUUID(), ts: sentAt, text, to: { id: m.id, login: m.login, name: m.name, text: m.text }, trigger, via: VIAS[p % VIAS.length], ms: 780 + p * 60, status: 'sent' }
         feed.push(reply)
         beats.push({ t: sentAt, k: 'r', w: weight(text) })
         decisions.push({ id: randomUUID(), ts: sentAt, name: m.name, text: m.text, trigger, outcome: 'reply', detail: text })
         if (now - sentAt < 30000) history.push({ ...m, id: reply.id, ts: sentAt, login: script.login, name: script.login, text, color: '', broadcaster: false, self: true })
-      } else if (rng() < 0.11) {
-        decisions.push({ id: randomUUID(), ts: t, name: m.name, text: m.text, trigger: 'chat', outcome: 'chance', chance: 0.06 + rng() * 0.2 })
+      } else if (rng() < 0.05) {
+        // A look at the chat that found nothing worth answering.
+        decisions.push({ id: randomUUID(), ts: t, name: '', text: '', trigger: 'chat', outcome: 'no_pick', detail: String(4 + Math.floor(rng() * 5)) })
       }
       t += chat.gap()
     }
@@ -397,7 +409,7 @@ export function createDemo(lang: Lang): Demo {
     chat,
     auth,
     model,
-    scene: { stream: script.stream, scripted: (text) => answers.has(text) },
+    scene: { stream: script.stream, scripted: (text) => answers.has(text), listenMs: LISTEN_MS, gapMs: GAP_MS },
     tryLine: script.keys[0].text,
     settings: {
       ui: { lang, stripMin: 2, theme: 'brackets', scheme: 'dark', closeToTray: false, autoStart: false },

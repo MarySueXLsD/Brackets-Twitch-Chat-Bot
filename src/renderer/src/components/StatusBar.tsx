@@ -36,7 +36,10 @@ export function StatusBar() {
     offline: { text: l('Чат: не подключён', 'Chat: not connected'), tone: undefined },
     connecting: { text: l('Чат: подключаюсь…', 'Chat: connecting…'), tone: 'live' as const },
     reconnecting: { text: l('Чат: переподключаюсь…', 'Chat: reconnecting…'), tone: 'live' as const },
-    connected: { text: s.anonymous ? l(`Чат: ${s.channel}, гость`, `Chat: ${s.channel}, guest`) : l(`Чат: ${s.channel}, ${s.login}`, `Chat: ${s.channel}, ${s.login}`), tone: 'ok' as const },
+    connected: {
+      text: s.anonymous ? l(`Чат: ${s.channel}, гость`, `Chat: ${s.channel}, guest`) : s.login === s.channel ? l(`Чат: ${s.channel}, свой канал`, `Chat: ${s.channel}, your channel`) : l(`Чат: ${s.channel}, ${s.login}`, `Chat: ${s.channel}, ${s.login}`),
+      tone: 'ok' as const
+    },
     auth_failed: { text: l('Чат: вход не принят', 'Chat: sign-in refused'), tone: 'warn' as const }
   }[s.twitch]
 

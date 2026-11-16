@@ -68,8 +68,8 @@ export async function takeShots(win: BrowserWindow, hooks: ShotHooks): Promise<v
       await go('monitor', 300)
       await shot('start')
       await hooks.start()
-      // By now one scripted reply has been sent and the next is being typed.
-      await sleep(15200)
+      // By now the model has chosen a message and answered it, and the answer to a mention is being typed.
+      await sleep(17000)
       await shot('monitor')
       await js(`document.querySelectorAll('aside [role=radio]')[1]?.click()`)
       await sleep(500)

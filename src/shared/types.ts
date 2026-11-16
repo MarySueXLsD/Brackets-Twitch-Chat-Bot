@@ -2,6 +2,9 @@
 
 export type Lang = 'ru' | 'en'
 
+/** Whose part the app plays in a chat: the streamer on your own channel, a viewer in someone else's. */
+export type Role = 'creator' | 'viewer'
+
 // ------------------------------------------------------------------ chat
 
 export interface ChatMessage {
@@ -52,7 +55,7 @@ export type SkipReason =
   | 'offline_stream'
 
 /** Why a reply that was started did not reach the chat. */
-export type DropReason = 'stale' | 'empty' | 'nothing' | 'garbled' | 'thinking' | 'off_language' | 'refusal' | 'blocked' | 'link' | 'repeat' | 'llm_error' | 'stopped' | 'paused' | 'rejected'
+export type DropReason = 'no_pick' | 'stale' | 'empty' | 'nothing' | 'garbled' | 'thinking' | 'off_language' | 'refusal' | 'blocked' | 'link' | 'repeat' | 'llm_error' | 'stopped' | 'paused' | 'rejected'
 
 export interface Decision {
   reply: boolean
@@ -112,7 +115,10 @@ export interface Beat {
 
 export interface Job {
   id: string
-  phase: 'reading' | 'thinking' | 'typing'
+  /** choosing: the model is looking over the latest messages for one worth answering. */
+  phase: 'choosing' | 'reading' | 'thinking' | 'typing'
+  /** While choosing: how many messages it is choosing from. */
+  pool?: number
   to: { name: string; text: string }
   trigger: Trigger
   text?: string
@@ -168,6 +174,10 @@ export type BotEvent =
 // ------------------------------------------------------------------ settings
 
 export interface Persona {
+  /** auto: the streamer when the chat is your own channel, a viewer otherwise. */
+  role: 'auto' | Role
+  /** How it refers to itself in Russian, where verbs and adjectives give the gender away. */
+  gender: 'neutral' | 'm' | 'f'
   /** In the person's own words: how they write. */
   about: string
   /** Lines they really wrote; the model copies the manner. */
@@ -200,6 +210,11 @@ export interface Behavior {
   maxPerHour: number
   /** After the pause, the reply goes to one of the messages that arrive within about this long. */
   spreadSec: number
+  /**
+   * Let the model choose which message to answer: one that can be answered in general terms.
+   * Off: a message is picked at random.
+   */
+  smartPick: boolean
   replyToMentions: boolean
   mentionGapSec: number
   questionBoost: number

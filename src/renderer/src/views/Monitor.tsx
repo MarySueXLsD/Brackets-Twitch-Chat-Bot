@@ -45,6 +45,7 @@ const OUTCOME: Record<DecisionEntry['outcome'], [string, string]> = {
   blocked_word: ['стоп-слово в сообщении', 'blocked word in the message'],
   offline_stream: ['стрим не в эфире', 'the stream is offline'],
   stale: ['опоздал с ответом', 'the reply came too late'],
+  no_pick: ['ни одно сообщение не подошло', 'no message was fit to answer'],
   empty: ['модель ничего не написала', 'the model wrote nothing'],
   nothing: ['модель решила, что ответить нечего', 'the model found nothing to say'],
   garbled: ['модель выдала бессвязный текст', 'the model wrote gibberish'],
@@ -127,8 +128,8 @@ function NextReply({ s, l }: { s: BotStatus; l: L }) {
     )
   }
   if (s.job) {
-    const phase = s.job.phase === 'reading' ? l('читает', 'reading') : s.job.phase === 'thinking' ? l('думает', 'thinking') : l('печатает', 'typing')
-    return <Readout value={<span className="live">{phase}</span>} label={l('пишет ответ', 'writing a reply')} />
+    const phase = s.job.phase === 'choosing' ? l('выбирает', 'choosing') : s.job.phase === 'reading' ? l('читает', 'reading') : s.job.phase === 'thinking' ? l('думает', 'thinking') : l('печатает', 'typing')
+    return <Readout value={<span className="live">{phase}</span>} label={s.job.phase === 'choosing' ? l('на что ответить', 'what to answer') : l('пишет ответ', 'writing a reply')} />
   }
   if (s.nextWindowAt > now) return <Readout value={mmss(s.nextWindowAt - now)} label={l('пауза до ответа', 'pause before a reply')} />
   return <Readout value={l('ждёт', 'ready')} label={l('ответит на одно из ближайших', 'answers one of the next')} tone="live" />
@@ -379,6 +380,14 @@ function NowCard({ s, l }: { s: BotStatus; l: L }) {
   const now = useNow(Boolean(job?.sendAt))
   if (s.state !== 'running') return <p className="text-[0.88rem] leading-relaxed text-text-3">{s.state === 'error' && s.error ? <span className="text-danger">{l(s.error.ru, s.error.en)}</span> : l('Остановлено. Нажми «Старт».', 'Stopped. Press Start.')}</p>
   if (!job) return <p className="text-[0.88rem] leading-relaxed text-text-3">{l('Читает чат и ждёт подходящий момент.', 'Reading the chat and waiting for the right moment.')}</p>
+  if (job.phase === 'choosing') {
+    return (
+      <div>
+        <div className="live text-[0.98rem] font-medium">{l('выбирает, на что ответить…', 'choosing what to answer…')}</div>
+        <p className="mt-1 text-[0.82rem] leading-relaxed text-text-3">{l(`Смотрит последние сообщения (${job.pool ?? 0}) и ищет то, на которое можно ответить в общих словах.`, `Looking over the latest messages (${job.pool ?? 0}) for one that can be answered in general terms.`)}</p>
+      </div>
+    )
+  }
   const total = job.sendAt ? Math.max(1, job.sendAt - job.startedAt) : 0
   const done = job.sendAt ? Math.min(1, (now - job.startedAt) / total) : 0
   return (
@@ -480,14 +489,17 @@ function Side({ s, l }: { s: BotStatus; l: L }) {
                       <span className={cn('truncate font-medium', replied ? 'text-text' : 'text-text-2')}>
                         {l(...OUTCOME[d.outcome])}
                         {d.outcome === 'chance' && d.chance !== undefined && `, ${l('шанс', 'chance')} ${Math.round(d.chance * 100)}%`}
+                        {d.outcome === 'no_pick' && d.detail && `, ${l('из', 'out of')} ${Number.parseInt(d.detail, 10) || 0}`}
                       </span>
                       <span className="min-w-0 flex-1" />
                       <span className="shrink-0 text-text-3">{l(...TRIGGER[d.trigger])}</span>
                       <span className="num shrink-0 text-[0.78rem] text-text-3">{clock(d.ts)}</span>
                     </div>
-                    <div className="mt-0.5 truncate pl-3 text-[0.82rem] text-text-3">
-                      <span className="text-text-2">{d.name}</span>: {d.text}
-                    </div>
+                    {d.name && (
+                      <div className="mt-0.5 truncate pl-3 text-[0.82rem] text-text-3">
+                        <span className="text-text-2">{d.name}</span>: {d.text}
+                      </div>
+                    )}
                   </div>
                 )
               })}

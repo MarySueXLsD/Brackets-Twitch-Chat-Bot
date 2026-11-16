@@ -77,9 +77,22 @@ export function Behavior() {
           <StepSlider label={l('Пауза после ответа: от', 'Pause after a reply: from')} value={b.minGapSec} steps={SECONDS} onChange={(v) => pace({ minGapSec: v, maxGapSec: Math.max(v, b.maxGapSec) })} format={(v) => span(v, l)} />
           <StepSlider label={l('Пауза после ответа: до', 'Pause after a reply: up to')} value={b.maxGapSec} steps={SECONDS} onChange={(v) => pace({ maxGapSec: v, minGapSec: Math.min(v, b.minGapSec) })} format={(v) => span(v, l)} />
           <Slider label={l('Не больше ответов в час', 'No more replies per hour than')} value={b.maxPerHour} min={1} max={150} onChange={(v) => pace({ maxPerHour: v })} />
+          <Switch
+            checked={b.smartPick}
+            onChange={(smartPick) => set({ smartPick })}
+            label={l('Нейросеть сама выбирает, на что ответить', 'The model chooses what to answer')}
+            description={l(
+              'Когда пауза закончилась, Brackets слушает чат, а потом нейросеть отдельным шагом выбирает сообщение, на которое можно ответить в общих словах: общий вопрос, просьбу о мнении, приветствие. Вопросы, где нужны факты, она пропускает, и если ничего не подошло, Brackets молчит. Выключено: сообщение выбирается случайно.',
+              'Once the pause is over, Brackets listens to the chat, and then the model, as a step of its own, chooses a message that can be answered in general terms: a general question, a request for an opinion, a greeting. It passes over questions that need facts, and when nothing fits Brackets says nothing. Off: a message is picked at random.'
+            )}
+          />
           <Slider
-            label={l('Выбирать сообщение в течение', 'Pick a message within')}
-            hint={l('Когда пауза закончилась, ответ достаётся не первому же сообщению, а одному из тех, что придут примерно за это время.', 'Once the pause is over, the reply does not go to the very first message but to one of those that arrive within about this long.')}
+            label={b.smartPick ? l('Слушать чат перед выбором', 'Listen before choosing') : l('Выбирать сообщение в течение', 'Pick a message within')}
+            hint={
+              b.smartPick
+                ? l('Сколько собирать сообщения, из которых нейросеть выбирает. Дольше 15 секунд не ждёт.', 'How long to gather the messages the model chooses from. It never waits longer than 15 seconds.')
+                : l('Когда пауза закончилась, ответ достаётся не первому же сообщению, а одному из тех, что придут примерно за это время.', 'Once the pause is over, the reply does not go to the very first message but to one of those that arrive within about this long.')
+            }
             value={b.spreadSec}
             min={3}
             max={120}
@@ -119,7 +132,7 @@ export function Behavior() {
           label={l('Вид ответа', 'What a reply looks like')}
           hint={
             b.replyMode === 'auto'
-              ? l('Обычная реплика в чат; если обращались к тебе, то ответом Twitch на то сообщение.', 'A plain line in chat; when someone talked to you, a Twitch reply to that message.')
+              ? l('На своём канале: ответом Twitch на сообщение зрителя, чтобы было видно, кому ты отвечаешь. В чужом чате: обычной репликой, а если обращались к тебе, ответом Twitch.', 'On your own channel: a Twitch reply to the viewer’s message, so it is clear whom you are answering. In someone else’s chat: a plain line, or a Twitch reply when someone talked to you.')
               : b.replyMode === 'plain'
                 ? l('Всегда обычная реплика, без имени.', 'Always a plain line, with no name.')
                 : b.replyMode === 'mention'

@@ -123,6 +123,8 @@ export class Router extends EventEmitter {
       if (m?.type === 'ready') {
         this.ready = { port: Number(m.port), unifiedKey: String(m.unifiedKey), sessionToken: String(m.sessionToken) }
         this.set('ready')
+        // The router fetches its catalogue a few seconds after starting, so look again after that.
+        for (const wait of [4000, 30000]) setTimeout(() => void this.tidyModels(), wait)
       } else if (m?.type === 'session') {
         if (this.ready) this.ready.sessionToken = String(m.sessionToken)
         for (const w of this.sessionWaiters.splice(0)) w(String(m.sessionToken))
@@ -225,6 +227,32 @@ export class Router extends EventEmitter {
 
   async removeKey(id: number): Promise<void> {
     await this.admin(`/keys/${id}`, { method: 'DELETE' })
+  }
+
+  /**
+   * Switch off the models that are not for talking. The free catalogue lists moderation models
+   * ("…Guard…") among the chat ones, and being small they win the "fastest" race; they answer
+   * every request with a verdict such as "Safety: Safe". They can be switched back on in the dashboard.
+   */
+  async tidyModels(): Promise<number> {
+    let off = 0
+    try {
+      const list = await this.admin<any>('/models')
+      const models: any[] = Array.isArray(list) ? list : (list?.models ?? [])
+      for (const m of models) {
+        if (!m?.enabled || !/guard|moderation|safety|classif/i.test(`${m.modelId ?? ''} ${m.displayName ?? ''}`)) continue
+        try {
+          await this.admin(`/models/${m.id}`, { method: 'PATCH', body: { enabled: false } })
+          off++
+        } catch {
+          /* one model that will not switch off must not stop the rest */
+        }
+      }
+    } catch {
+      /* the router is restarting; the next call tries again */
+    }
+    if (off) this.keep(`[brackets] switched off ${off} moderation model(s): they do not chat`)
+    return off
   }
 
   /** Some providers answer without any key. Switch them on so the app works before a key is added. */

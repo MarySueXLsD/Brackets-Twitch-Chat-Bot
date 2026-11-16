@@ -99,10 +99,12 @@ export const DEFAULT_SETTINGS: Settings = {
     manual: false
   },
   persona: {
+    role: 'auto',
+    gender: 'neutral',
     about: PERSONA_TEXT.ru.about,
     examples: PERSONA_TEXT.ru.examples,
     lang: 'auto',
-    maxWords: 12,
+    maxWords: 8,
     lowercase: true,
     noPeriod: true,
     brackets: 45,
@@ -119,6 +121,7 @@ export const DEFAULT_SETTINGS: Settings = {
     preset: 'active',
     ...PRESETS.active,
     spreadSec: 20,
+    smartPick: true,
     replyToMentions: true,
     mentionGapSec: 12,
     questionBoost: 2,
@@ -193,6 +196,7 @@ export function sanitizeSettings(input: unknown): Settings {
   b.maxGapSec = clamp(b.maxGapSec, b.minGapSec, 7200, Math.max(b.minGapSec, d.behavior.maxGapSec))
   b.maxPerHour = clamp(b.maxPerHour, 1, 240, d.behavior.maxPerHour)
   b.spreadSec = clamp(b.spreadSec, 3, 180, d.behavior.spreadSec)
+  b.smartPick = b.smartPick !== false
   b.mentionGapSec = clamp(b.mentionGapSec, 2, 600, d.behavior.mentionGapSec)
   b.questionBoost = clamp(b.questionBoost, 1, 6, d.behavior.questionBoost)
   b.streamerBoost = clamp(b.streamerBoost, 1, 6, d.behavior.streamerBoost)
@@ -223,6 +227,8 @@ export function sanitizeSettings(input: unknown): Settings {
   p.customPrompt = String(p.customPrompt ?? '').slice(0, 6000)
   p.swearing = p.swearing === true
   if (!['auto', 'ru', 'en'].includes(p.lang)) p.lang = 'auto'
+  if (!['auto', 'creator', 'viewer'].includes(p.role)) p.role = 'auto'
+  if (!['neutral', 'm', 'f'].includes(p.gender)) p.gender = 'neutral'
 
   const l = s.llm
   l.temperature = clamp(l.temperature, 0, 2, d.llm.temperature)
