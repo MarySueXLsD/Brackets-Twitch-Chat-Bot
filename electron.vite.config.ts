@@ -9,8 +9,11 @@ const shared = { '@shared': resolve(__dirname, 'src/shared'), '@core': resolve(_
 // The Client ID of your own Twitch application, built into the app so nobody has to type it:
 // one line in twitch-client-id.local.txt (not committed), or the BRACKETS_TWITCH_CLIENT_ID variable.
 // Without either, the Account page asks for it. A Client ID is not a secret.
+// BRACKETS_TWITCH_CLIENT_ID=none builds without one even when the file is there: that is how the
+// public download is made, so that other people's bots do not run under your application.
 const file = resolve(__dirname, 'twitch-client-id.local.txt')
-const clientId = (process.env.BRACKETS_TWITCH_CLIENT_ID ?? (existsSync(file) ? readFileSync(file, 'utf8') : '')).trim()
+const given = (process.env.BRACKETS_TWITCH_CLIENT_ID ?? (existsSync(file) ? readFileSync(file, 'utf8') : '')).trim()
+const clientId = given === 'none' ? '' : given
 if (clientId && !/^[a-z0-9]{20,40}$/i.test(clientId)) throw new Error('twitch-client-id.local.txt does not hold a Twitch Client ID')
 const define = { __TWITCH_CLIENT_ID__: JSON.stringify(clientId) }
 
